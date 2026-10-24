@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Neues Wichteln{% endblock %}
+{% block content %}
+<h1>Neues Wichteln anlegen</h1>
+<p class="muted">
+  Gib die Vornamen ein, lose aus und verteile persönliche Links. Jede Person sieht nur,
+  wen sie selbst beschenkt. Keine Mailadressen, kein Login.
+</p>
+{% if errors %}
+<div class="card error" role="alert"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+<form method="post" action="{{ url_for('wichteln.create_event') }}" class="card">
+  <label for="title">Titel</label>
+  <input id="title" name="title" maxlength="100" required value="{{ form.title or '' }}"
+         placeholder="Familienwichteln 2026">
+  <label for="budget">Budget (optional)</label>
+  <input id="budget" name="budget" maxlength="50" value="{{ form.budget or '' }}"
+         placeholder="ca. 20 €">
+  <label for="names">Vornamen – eine Person pro Zeile (mindestens 3)</label>
+  <textarea id="names" name="names" rows="8" required>{{ form.names or '' }}</textarea>
+  <p><button type="submit">Wichteln anlegen</button></p>
+</form>
+{% endblock %}

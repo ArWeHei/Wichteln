@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - wichteln-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Domain, z. B. wichteln.example.org (DNS muss auf den Server zeigen).
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS in .env setzen}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  wichteln-data:
+  caddy-data:
+  caddy-config:

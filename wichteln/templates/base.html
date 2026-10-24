@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta property="og:title" content="Dein Wichtel wartet 🎁">
+  <meta property="og:description" content="Öffne den Link, um zu erfahren, wen du beschenkst.">
+  <title>{% block title %}Wichteln{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="site"><a href="{{ url_for('wichteln.index') }}">🎁 Wichteln</a></header>
+  <main>{% block content %}{% endblock %}</main>
+  <script src="{{ url_for('static', filename='copy.js') }}" defer></script>
+</body>
+</html>

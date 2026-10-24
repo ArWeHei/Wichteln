@@ -106,12 +106,12 @@ Bewusst schlank, serverseitig gerendert, ohne JavaScript-Framework.
 
 | Bereich           | Wahl                                                | Begründung                                              |
 | ----------------- | --------------------------------------------------- | ------------------------------------------------------- |
-| Sprache/Framework | Python 3.12+ mit Flask                              | wenig Code, ideal für Formulare und Templates           |
+| Sprache/Framework | Python 3.10+ mit Flask                              | wenig Code, ideal für Formulare und Templates           |
 | Templates         | Jinja2                                              | in Flask enthalten                                      |
-| Datenbank         | SQLite über SQLAlchemy 2                            | eine Datei, kein DB-Server, reicht locker               |
+| Datenbank         | SQLite über das `sqlite3`-Modul der Standardbibliothek | eine Datei, kein DB-Server, keine Zusatz-Abhängigkeit |
 | Styling           | kleines eigenes CSS (oder Pico.css, lokal)          | keine externen CDNs (Datenschutz, keine Token-Lecks)    |
 | Tests / Linting   | pytest, ruff                                        |                                                         |
-| Betrieb           | Docker + gunicorn, Caddy als Reverse-Proxy (HTTPS)  | Caddy holt TLS-Zertifikate automatisch                  |
+| Betrieb           | Prototyp: PythonAnywhere; später: Docker + gunicorn + Caddy auf einem VPS | beide Wege sind in `deploy/` beschrieben |
 | CI                | GitHub Actions: ruff + pytest                       |                                                         |
 
 Bei einer Vorliebe für JavaScript/TypeScript ginge dasselbe mit SvelteKit und
@@ -193,22 +193,17 @@ better-sqlite3; der restliche Plan bleibt gleich.
 ```
 Wichteln/
 ├── wichteln/
-│   ├── __init__.py         # create_app()
-│   ├── db.py               # SQLAlchemy-Setup
-│   ├── models.py           # Event, Participant, Exclusion
+│   ├── __init__.py         # create_app(), Sicherheits-Header
+│   ├── db.py               # SQLite-Schema und Verbindung
 │   ├── draw.py             # Auslosung als reine Funktion
 │   ├── tokens.py           # Tokens erzeugen und hashen
-│   ├── views/
-│   │   ├── public.py       # Startseite, Anlegen
-│   │   ├── admin.py        # Verwaltung
-│   │   └── participant.py  # persönliche Seite
+│   ├── views.py            # alle Routen
 │   ├── templates/
 │   └── static/
 ├── tests/
-│   ├── test_draw.py
-│   ├── test_admin.py
-│   └── test_participant.py
-├── pyproject.toml
+├── deploy/                 # PYTHONANYWHERE.md, VPS.md, Caddyfile
+├── wsgi.py                 # Einstiegspunkt für PythonAnywhere und gunicorn
+├── requirements.txt
 ├── Dockerfile
 ├── compose.yaml
 └── .github/workflows/ci.yml
@@ -218,20 +213,21 @@ Wichteln/
 
 ### Phase 0 – Grundgerüst
 
-- [ ] `pyproject.toml`, Flask-App-Factory, SQLite-Anbindung
-- [ ] ruff und pytest einrichten, GitHub-Actions-CI
-- [ ] Basis-Layout (Template, CSS, mobilfreundlich)
+- [x] `pyproject.toml`, Flask-App-Factory, SQLite-Anbindung
+- [x] ruff und pytest einrichten, GitHub-Actions-CI
+- [x] Basis-Layout (Template, CSS, mobilfreundlich)
 
 ### Phase 1 – MVP (ab hier ist das Wichteln benutzbar)
 
-- [ ] Formular: Ereignis und Namensliste anlegen, inkl. Validierung
-- [ ] Verwaltungsseite mit geheimem Link und Hinweis „Link speichern“
-- [ ] Auslosung (`draw.py`) mit Tests
-- [ ] Liste der persönlichen Links mit Kopieren-Button
-- [ ] Persönliche Seite mit „Aufdecken“, Speichern von `first_revealed_at`
-- [ ] Aufgedeckt-Status auf der Verwaltungsseite
-- [ ] Sicherheits-Header, `noindex`, neutrale Link-Vorschau
-- [ ] Dockerfile und `compose.yaml`, erstes Deployment
+- [x] Formular: Ereignis und Namensliste anlegen, inkl. Validierung
+- [x] Verwaltungsseite mit geheimem Link und Hinweis „Link speichern“
+- [x] Auslosung (`draw.py`) mit Tests
+- [x] Liste der persönlichen Links mit Kopieren-Button
+- [x] Persönliche Seite mit „Aufdecken“, Speichern von `first_revealed_at`
+- [x] Aufgedeckt-Status auf der Verwaltungsseite
+- [x] Sicherheits-Header, `noindex`, neutrale Link-Vorschau
+- [x] Dockerfile und `compose.yaml` (VPS) sowie Anleitung für PythonAnywhere
+- [ ] Erstes Deployment auf PythonAnywhere (Prototyp)
 
 ### Phase 2 – Komfort
 

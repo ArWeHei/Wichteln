@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} – Verwaltung{% endblock %}
+{% block content %}
+<h1>{{ event.title }}</h1>
+{% if event.budget %}<p class="muted">Budget: {{ event.budget }}</p>{% endif %}
+
+<div class="card warn">
+  <strong>Diesen Verwaltungslink speichern!</strong>
+  Es gibt kein Konto – ohne diesen Link kommst du nicht mehr an die persönlichen Links.
+  <div class="row" style="margin-top:.5rem">
+    <input id="admin-url" readonly value="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">
+    <button type="button" class="secondary" data-target="admin-url"
+            data-copy="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">Kopieren</button>
+  </div>
+</div>
+
+{% if event.status == 'draft' %}
+<div class="card">
+  <p>{{ participants|length }} Personen sind eingetragen. Nach dem Auslosen lassen sich die
+  Namen nicht mehr ändern.</p>
+  <form method="post" action="{{ url_for('wichteln.admin_draw', admin_token=admin_token) }}">
+    <button type="submit" class="big">Jetzt auslosen 🎲</button>
+  </form>
+</div>
+<div class="card">
+  {% for p in participants %}<div class="person">{{ p.name }}</div>{% endfor %}
+</div>
+{% else %}
+<p>Ausgelost am {{ event.drawn_at|dt }}. Schick jeder Person ihren persönlichen Link.
+Hier siehst du <strong>nicht</strong>, wer wen beschenkt – so kannst du selbst mitmachen.</p>
+<div class="card">
+  {% for p in participants %}
+  <div class="person">
+    <div class="row">
+      <strong>{{ p.name }}</strong>
+      {% if p.first_revealed_at %}
+        <span class="status-ok">✔ aufgedeckt {{ p.first_revealed_at|dt }}</span>
+      {% else %}
+        <span class="muted">noch nicht aufgedeckt</span>
+      {% endif %}
+    </div>
+    <div class="row">
+      <input id="link-{{ p.id }}" readonly value="{{ url_for('wichteln.participant', token=p.token, _external=True) }}">
+      <button type="button" class="secondary" data-target="link-{{ p.id }}"
+              data-copy="{{ url_for('wichteln.participant', token=p.token, _external=True) }}">Kopieren</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<details class="card">
+  <summary>Wichteln löschen</summary>
+  <p>Löscht alle Daten dieses Wichtelns unwiderruflich.</p>
+  <form method="post" action="{{ url_for('wichteln.admin_delete', admin_token=admin_token) }}">
+    <button type="submit" class="secondary">Endgültig löschen</button>
+  </form>
+</details>
+{% endblock %}

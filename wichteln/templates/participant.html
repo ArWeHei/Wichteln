@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Dein Wichtel wartet{% endblock %}
+{% block content %}
+<h1>Hallo {{ p.name }}! 🎁</h1>
+<p class="muted">{{ p.title }}{% if p.budget %} · Budget: {{ p.budget }}{% endif %}</p>
+
+{% if revealed %}
+<div class="card">
+  <p>Du beschenkst:</p>
+  <div class="result">{{ p.receiver_name }}</div>
+  <p class="muted">Pssst – nicht weitersagen! Du kannst diese Seite jederzeit wieder öffnen.</p>
+</div>
+{% elif p.status != 'drawn' %}
+<div class="card">Die Auslosung hat noch nicht stattgefunden. Schau später noch einmal vorbei.</div>
+{% else %}
+<div class="card">
+  {% if p.first_revealed_at %}
+  <p class="warn">Diese Seite wurde bereits am {{ p.first_revealed_at|dt }} aufgedeckt. Das warst
+  nicht du? Dann sag der Organisation Bescheid.</p>
+  {% endif %}
+  <p>Bist du bereit? Stell sicher, dass niemand mitliest.</p>
+  <form method="post" action="{{ url_for('wichteln.reveal', token=p.token) }}">
+    <button type="submit" class="big">Aufdecken</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

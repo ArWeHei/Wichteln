@@ -1,0 +1,45 @@
+:root {
+  --bg: #fdf8f3; --fg: #2b2118; --muted: #6f6256; --card: #fff;
+  --accent: #b3261e; --accent-fg: #fff; --border: #e5d9cc; --ok: #2e7d32; --warn: #8a5a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1713; --fg: #f3ebe2; --muted: #b3a595; --card: #26201a;
+    --accent: #e0574f; --accent-fg: #1c1713; --border: #3a3128; --ok: #7bc47f; --warn: #e0b04a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 40rem; margin: 0 auto; padding: 1rem 16px 3rem; }
+header.site { padding: 1rem 16px 0; max-width: 40rem; margin: 0 auto; }
+header.site a { color: var(--fg); text-decoration: none; font-weight: 700; }
+h1 { font-size: 1.6rem; margin: 1rem 0 .5rem; }
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1rem; margin: 1rem 0;
+}
+label { display: block; font-weight: 600; margin: .8rem 0 .2rem; }
+input, textarea {
+  width: 100%; padding: .6rem; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+button, .btn {
+  font: inherit; font-weight: 600; cursor: pointer; padding: .6rem 1rem; border-radius: 8px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+}
+button.secondary { background: transparent; color: var(--accent); }
+button.big { font-size: 1.2rem; padding: .9rem 1.4rem; }
+.muted { color: var(--muted); }
+.error { border-color: var(--accent); }
+.error ul { margin: 0; padding-left: 1.2rem; }
+.warn { border-color: var(--warn); color: var(--warn); }
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.row input { flex: 1 1 14rem; min-width: 0; }
+.person { padding: .6rem 0; border-top: 1px solid var(--border); }
+.person:first-child { border-top: 0; }
+.status-ok { color: var(--ok); font-weight: 600; }
+.result { font-size: 2rem; font-weight: 800; text-align: center; margin: 1rem 0; }
+form.inline { display: inline; }
