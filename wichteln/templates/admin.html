@@ -3,6 +3,10 @@
 {% block content %}
 <h1>{{ event.title }}</h1>
 {% if event.budget %}<p class="muted">Budget: {{ event.budget }}</p>{% endif %}
+<p class="muted">
+  {% if event.organizer_sees %}Du kannst nach dem Auslosen die komplette Zuordnung sehen.
+  {% else %}Du siehst die Zuordnung nicht und kannst selbst mitmachen.{% endif %}
+</p>
 
 <div class="card warn">
   <strong>Diesen Verwaltungslink speichern!</strong>
@@ -65,7 +69,16 @@
 </div>
 {% else %}
 <p>Ausgelost am {{ event.drawn_at|dt }}. Schick jeder Person ihren persönlichen Link.
-Hier siehst du <strong>nicht</strong>, wer wen beschenkt – so kannst du selbst mitmachen.</p>
+{% if not event.organizer_sees %}Hier siehst du <strong>nicht</strong>, wer wen beschenkt – so kannst du
+selbst mitmachen.{% endif %}</p>
+{% if assignments %}
+<div class="card">
+  <h2>Zuordnung</h2>
+  {% for a in assignments %}
+  <div class="person">{{ a.giver }} → {{ a.receiver }}</div>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="card">
   {% for p in participants %}
   <div class="person">

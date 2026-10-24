@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from .conftest import participant_links
@@ -101,3 +103,62 @@ def test_security_headers(client, event):
     assert resp.headers["Referrer-Policy"] == "no-referrer"
     assert "noindex" in resp.headers["X-Robots-Tag"]
     assert resp.headers["Cache-Control"] == "no-store"
+
+
+def _names(client, admin_path):
+    return {
+        link: client.get(link).get_data(as_text=True).split("Hallo ")[1].split("!")[0]
+        for link in participant_links(client, admin_path)
+    }
+
+
+def test_organizer_does_not_see_assignment_by_default(client, event):
+    client.post(event + "/draw")
+    html = client.get(event).get_data(as_text=True)
+    assert "Zuordnung</h2>" not in html
+    assert "→" not in html
+
+
+def test_organizer_sees_assignment_when_chosen(client):
+    path = client.post(
+        "/events",
+        data={"title": "Kinder", "names": "Anna\nBen\nCleo\nDora", "organizer_sees": "1"},
+    ).headers["Location"]
+    assert "Zuordnung</h2>" not in client.get(path).get_data(as_text=True)  # vor dem Auslosen
+    client.post(path + "/draw")
+    html = client.get(path).get_data(as_text=True)
+    assert "Zuordnung</h2>" in html
+
+    shown = dict(re.findall(r'class="person">(\w+) → (\w+)<', html))
+    assert len(shown) == 4
+    for link in participant_links(client, path):
+        page = client.get(link).get_data(as_text=True)
+        own = page.split("Hallo ")[1].split("!")[0]
+        assert "Organisation kann die Zuordnung einsehen" in page
+        revealed = client.post(link + "/reveal").get_data(as_text=True)
+        assert shown[own] == revealed.split('class="result">')[1].split("<")[0]
+
+
+def test_default_event_page_has_no_organizer_notice(client, event):
+    client.post(event + "/draw")
+    link = participant_links(client, event)[0]
+    assert "Organisation kann" not in client.get(link).get_data(as_text=True)
+
+
+def test_existing_db_gets_migrated(tmp_path):
+    import sqlite3
+
+    from wichteln import create_app
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute(
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, title TEXT NOT NULL, budget TEXT,"
+        " admin_token_hash TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'draft',"
+        " created_at TEXT NOT NULL, drawn_at TEXT)"
+    )
+    old.commit()
+    old.close()
+    app = create_app({"TESTING": True, "DATABASE": str(path)})
+    resp = app.test_client().post("/events", data={"title": "T", "names": "A\nB\nC"})
+    assert resp.status_code == 303

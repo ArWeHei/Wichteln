@@ -56,7 +56,7 @@ def get_participant(token):
     row = (
         get_db()
         .execute(
-            "SELECT p.*, e.title, e.budget, e.status,"
+            "SELECT p.*, e.title, e.budget, e.status, e.organizer_sees,"
             " r.name AS receiver_name"
             " FROM participants p JOIN events e ON e.id = p.event_id"
             " LEFT JOIN participants r ON r.id = p.receiver_id"
@@ -80,6 +80,7 @@ def create_event():
     title = request.form.get("title", "").strip()
     budget = request.form.get("budget", "").strip()
     raw_names = request.form.get("names", "")
+    organizer_sees = 1 if request.form.get("organizer_sees") == "1" else 0
     names, errors = parse_names(raw_names)
     if not title:
         errors.insert(0, "Bitte gib dem Wichteln einen Titel.")
@@ -88,15 +89,21 @@ def create_event():
     if len(budget) > MAX_BUDGET:
         errors.append(f"Das Budget darf höchstens {MAX_BUDGET} Zeichen lang sein.")
     if errors:
-        form = {"title": title, "budget": budget, "names": raw_names}
+        form = {
+            "title": title,
+            "budget": budget,
+            "names": raw_names,
+            "organizer_sees": organizer_sees,
+        }
         return render_template("index.html", form=form, errors=errors), 400
 
     admin_token = new_token()
     db = get_db()
     with db:
         cur = db.execute(
-            "INSERT INTO events (title, budget, admin_token_hash, created_at) VALUES (?, ?, ?, ?)",
-            (title, budget or None, hash_token(admin_token), now()),
+            "INSERT INTO events (title, budget, organizer_sees, admin_token_hash, created_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (title, budget or None, organizer_sees, hash_token(admin_token), now()),
         )
         db.executemany(
             "INSERT INTO participants (event_id, name, token) VALUES (?, ?, ?)",
@@ -117,8 +124,17 @@ def render_admin(event, admin_token, error=None, status=200):
         " WHERE x.event_id = ? ORDER BY g.name, r.name",
         (event["id"],),
     ).fetchall()
+    assignments = []
+    if event["organizer_sees"] and event["status"] == "drawn":
+        assignments = db.execute(
+            "SELECT g.name AS giver, r.name AS receiver FROM participants g"
+            " JOIN participants r ON r.id = g.receiver_id"
+            " WHERE g.event_id = ? ORDER BY g.name",
+            (event["id"],),
+        ).fetchall()
     html = render_template(
         "admin.html",
+        assignments=assignments,
         event=event,
         participants=participants,
         exclusions=exclusions,

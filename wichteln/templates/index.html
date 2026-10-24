@@ -18,6 +18,17 @@
          placeholder="ca. 20 €">
   <label for="names">Vornamen – eine Person pro Zeile (mindestens 3)</label>
   <textarea id="names" name="names" rows="8" required>{{ form.names or '' }}</textarea>
+  <fieldset>
+    <legend>Darf die Organisation die Zuordnung sehen?</legend>
+    <label class="check"><input type="radio" name="organizer_sees" value="0"
+      {% if not form.organizer_sees %}checked{% endif %}>
+      Nein – ich mache selbst mit und lasse mich überraschen</label>
+    <label class="check"><input type="radio" name="organizer_sees" value="1"
+      {% if form.organizer_sees %}checked{% endif %}>
+      Ja – ich sehe, wer wen beschenkt (z. B. für Kinder)</label>
+    <p class="muted">Das lässt sich später nicht mehr ändern. Die Teilnehmenden sehen auf
+    ihrer Seite, wenn die Organisation die Zuordnung einsehen kann.</p>
+  </fieldset>
   <p><button type="submit">Wichteln anlegen</button></p>
 </form>
 {% endblock %}

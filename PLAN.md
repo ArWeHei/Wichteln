@@ -269,5 +269,6 @@ Wichteln/
    anklicken. Empfehlung: persönliche Links.
 4. Werden Ausschlüsse oder Wunschzettel schon fürs erste Wichteln gebraucht?
    Dann wandern sie in Phase 1.
-5. Soll die Orga optional die komplette Zuordnung sehen dürfen, z. B. beim
-   Kinder-Wichteln, wenn sie selbst nicht mitmacht?
+5. ~~Soll die Orga optional die komplette Zuordnung sehen dürfen?~~ Entschieden: Ja, als
+   Option beim Anlegen (Standard: nein). Sie ist danach nicht mehr änderbar, und die
+   Teilnehmenden sehen auf ihrer Seite einen Hinweis, wenn die Orga die Zuordnung sieht.

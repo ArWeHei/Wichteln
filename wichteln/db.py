@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS events (
     id               INTEGER PRIMARY KEY,
     title            TEXT NOT NULL,
     budget           TEXT,
+    organizer_sees   INTEGER NOT NULL DEFAULT 0,
     admin_token_hash TEXT NOT NULL UNIQUE,
     status           TEXT NOT NULL DEFAULT 'draft',
     created_at       TEXT NOT NULL,
@@ -49,4 +50,8 @@ def close_db(_exc=None):
 def init_db(path):
     db = sqlite3.connect(path)
     db.executescript(SCHEMA)
+    columns = {row[1] for row in db.execute("PRAGMA table_info(events)")}
+    if "organizer_sees" not in columns:
+        db.execute("ALTER TABLE events ADD COLUMN organizer_sees INTEGER NOT NULL DEFAULT 0")
+        db.commit()
     db.close()
