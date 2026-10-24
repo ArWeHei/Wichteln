@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS events (
     budget           TEXT,
     organizer_sees   INTEGER NOT NULL DEFAULT 0,
     admin_token_hash TEXT NOT NULL UNIQUE,
+    admin_token      TEXT,
     created_at       TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS participants (
@@ -65,6 +66,9 @@ def _migrate(db):
     """Bringt Datenbanken älterer Versionen auf den aktuellen Stand."""
     if "organizer_sees" not in _columns(db, "events"):
         db.execute("ALTER TABLE events ADD COLUMN organizer_sees INTEGER NOT NULL DEFAULT 0")
+
+    if "admin_token" not in _columns(db, "events"):
+        db.execute("ALTER TABLE events ADD COLUMN admin_token TEXT")
 
     # Früher lag die Zuordnung direkt an der Person; jetzt gehört sie zu einer Auslosung.
     # Die alten Spalten bleiben (SQLite kann sie nicht sauber entfernen), werden aber geleert.

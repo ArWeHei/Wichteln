@@ -16,5 +16,7 @@ Caddy holt das HTTPS-Zertifikat automatisch. Die Datenbank liegt im Docker-Volum
 
 - **Update:** `git pull && docker compose up -d --build`
 - **Backup:** `docker compose cp app:/data/wichteln.db ./wichteln-backup.db`
+- **Verwaltungslinks anzeigen:**
+  `docker compose exec app flask --app wsgi admin-links --base-url https://wichteln.example.org`
 - **Logs:** `docker compose logs -f app` – es gibt bewusst kein Access-Log, weil die
   URLs geheime Tokens enthalten.

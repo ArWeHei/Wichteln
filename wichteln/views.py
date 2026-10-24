@@ -122,9 +122,10 @@ def create_event():
     db = get_db()
     with db:
         cur = db.execute(
-            "INSERT INTO events (title, budget, organizer_sees, admin_token_hash, created_at)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (title, budget or None, organizer_sees, hash_token(admin_token), now()),
+            "INSERT INTO events"
+            " (title, budget, organizer_sees, admin_token_hash, admin_token, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (title, budget or None, organizer_sees, hash_token(admin_token), admin_token, now()),
         )
         db.executemany(
             "INSERT INTO participants (event_id, name, token) VALUES (?, ?, ?)",

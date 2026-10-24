@@ -1,20 +1,11 @@
 import os
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import db, views
-
-TIMEZONE = ZoneInfo("Europe/Berlin")
-
-
-def format_dt(value):
-    if not value:
-        return ""
-    return datetime.fromisoformat(value).astimezone(TIMEZONE).strftime("%d.%m.%Y um %H:%M Uhr")
+from . import cli, db, views
+from .util import format_dt
 
 
 def create_app(config=None):
@@ -34,6 +25,7 @@ def create_app(config=None):
     app.teardown_appcontext(db.close_db)
     app.jinja_env.filters["dt"] = format_dt
     app.register_blueprint(views.bp)
+    app.cli.add_command(cli.admin_links)
 
     @app.after_request
     def secure_headers(resp):

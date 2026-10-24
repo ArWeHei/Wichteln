@@ -16,6 +16,19 @@ pytest && ruff check .
 Die Datenbank liegt standardmäßig in `instance/wichteln.db`
 (anderer Ort: Umgebungsvariable `WICHTELN_DB`).
 
+## Verwaltungslinks anzeigen
+
+Falls ein Verwaltungslink verloren gegangen ist, zeigt der Server ihn an:
+
+```bash
+flask --app wsgi admin-links --base-url https://deine-seite.example
+```
+
+Das listet alle Wichteln mit ihrem Verwaltungslink. `--base-url` kann man weglassen (dann
+steht nur der Pfad da) oder dauerhaft als Umgebungsvariable `WICHTELN_BASE_URL` setzen.
+Bei Wichteln, die vor dieser Funktion angelegt wurden, ist der Link nicht gespeichert; dort
+erzeugt `flask --app wsgi admin-links --reset <ID>` einen neuen (der alte wird ungültig).
+
 ## Deployment
 
 - Prototyp auf PythonAnywhere: [deploy/PYTHONANYWHERE.md](deploy/PYTHONANYWHERE.md)

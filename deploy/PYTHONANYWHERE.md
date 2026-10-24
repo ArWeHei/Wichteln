@@ -48,6 +48,8 @@ und bleibt bei Reloads erhalten.
   **„Run until 3 months from today“** klicken.
 - **Update einspielen:** Bash-Konsole → `cd ~/Wichteln && git pull && pip install -r requirements.txt`,
   danach im Tab *Web* **Reload**.
+- **Verwaltungslink vergessen:** Bash-Konsole →
+  `cd ~/Wichteln && workon wichteln && flask --app wsgi admin-links --base-url https://<benutzername>.pythonanywhere.com`
 - **Backup:** `instance/wichteln.db` herunterladen (Tab *Files*).
 - **Löschen nach dem Fest:** Web-App im Tab *Web* löschen oder die Datenbankdatei entfernen.
 - Zugriffs-Logs von PythonAnywhere enthalten die geheimen URLs; sie sind nur für dich

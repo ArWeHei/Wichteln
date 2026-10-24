@@ -194,8 +194,11 @@ automatisch in eine „Auslosung 1“ überführt.
 ## 7. Sicherheit und Datenschutz
 
 - Es werden nur Vornamen gespeichert, keine Kontaktdaten.
-- Tokens mit mindestens 128 Bit; das Verwaltungs-Token wird nur als Hash
-  gespeichert.
+- Tokens mit mindestens 128 Bit. Das Verwaltungs-Token wird zusätzlich zum Hash im Klartext
+  gespeichert, damit der Betreiber verlorene Links per Kommandozeile
+  (`flask --app wsgi admin-links`) wieder anzeigen kann. Das ist unkritisch, weil die
+  persönlichen Tokens ohnehin im Klartext liegen; die Datenbank muss also so oder so
+  geschützt sein.
 - HTTPS ist Pflicht.
 - Auf allen Token-Seiten: `Referrer-Policy: no-referrer`,
   `X-Robots-Tag: noindex`, `Cache-Control: no-store`.
