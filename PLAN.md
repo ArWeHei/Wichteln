@@ -239,7 +239,7 @@ Wichteln/
 
 ### Phase 3 – Extras nach Bedarf
 
-- [ ] Ausschlüsse (Paare, „letztes Jahr schon gezogen“)
+- [x] Ausschlüsse (Paare, „letztes Jahr schon gezogen“) – bereits im Prototyp umgesetzt
 - [ ] Wunschzettel: Jede Person trägt auf ihrer Seite Wünsche ein, ihr Wichtel
       sieht sie auf seiner Seite
 - [ ] Druckansicht mit QR-Codes zum Ausschneiden, für Wichteln vor Ort

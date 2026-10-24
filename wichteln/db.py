@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS participants (
     UNIQUE (event_id, name COLLATE NOCASE),
     UNIQUE (event_id, receiver_id)
 );
+CREATE TABLE IF NOT EXISTS exclusions (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    giver_id    INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+    receiver_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+    UNIQUE (giver_id, receiver_id)
+);
 """
 
 

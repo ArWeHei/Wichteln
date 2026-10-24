@@ -105,17 +105,75 @@ def create_event():
     return redirect(url_for("wichteln.admin", admin_token=admin_token), code=303)
 
 
+def render_admin(event, admin_token, error=None, status=200):
+    db = get_db()
+    participants = db.execute(
+        "SELECT * FROM participants WHERE event_id = ? ORDER BY name", (event["id"],)
+    ).fetchall()
+    exclusions = db.execute(
+        "SELECT x.id, g.name AS giver, r.name AS receiver FROM exclusions x"
+        " JOIN participants g ON g.id = x.giver_id"
+        " JOIN participants r ON r.id = x.receiver_id"
+        " WHERE x.event_id = ? ORDER BY g.name, r.name",
+        (event["id"],),
+    ).fetchall()
+    html = render_template(
+        "admin.html",
+        event=event,
+        participants=participants,
+        exclusions=exclusions,
+        admin_token=admin_token,
+        error=error,
+    )
+    return html, status
+
+
 @bp.get("/admin/<admin_token>")
 def admin(admin_token):
+    return render_admin(get_event_by_admin_token(admin_token), admin_token)
+
+
+@bp.post("/admin/<admin_token>/exclusions")
+def add_exclusion(admin_token):
     event = get_event_by_admin_token(admin_token)
-    participants = (
-        get_db()
-        .execute("SELECT * FROM participants WHERE event_id = ? ORDER BY name", (event["id"],))
-        .fetchall()
-    )
-    return render_template(
-        "admin.html", event=event, participants=participants, admin_token=admin_token
-    )
+    if event["status"] != "draft":
+        abort(409)
+    db = get_db()
+    ids = {
+        r["id"]
+        for r in db.execute("SELECT id FROM participants WHERE event_id = ?", (event["id"],))
+    }
+    try:
+        giver = int(request.form.get("giver", ""))
+        receiver = int(request.form.get("receiver", ""))
+    except ValueError:
+        return render_admin(event, admin_token, "Bitte zwei Personen auswählen.", 400)
+    if giver not in ids or receiver not in ids:
+        abort(400)
+    if giver == receiver:
+        return render_admin(event, admin_token, "Bitte zwei verschiedene Personen wählen.", 400)
+    pairs = [(giver, receiver)]
+    if request.form.get("mutual"):
+        pairs.append((receiver, giver))
+    with db:
+        db.executemany(
+            "INSERT OR IGNORE INTO exclusions (event_id, giver_id, receiver_id) VALUES (?, ?, ?)",
+            [(event["id"], g, r) for g, r in pairs],
+        )
+    return redirect(url_for("wichteln.admin", admin_token=admin_token), code=303)
+
+
+@bp.post("/admin/<admin_token>/exclusions/<int:exclusion_id>/delete")
+def delete_exclusion(admin_token, exclusion_id):
+    event = get_event_by_admin_token(admin_token)
+    if event["status"] != "draft":
+        abort(409)
+    db = get_db()
+    with db:
+        db.execute(
+            "DELETE FROM exclusions WHERE id = ? AND event_id = ?", (exclusion_id, event["id"])
+        )
+    return redirect(url_for("wichteln.admin", admin_token=admin_token), code=303)
 
 
 @bp.post("/admin/<admin_token>/draw")
@@ -128,10 +186,21 @@ def admin_draw(admin_token):
         r["id"]
         for r in db.execute("SELECT id FROM participants WHERE event_id = ?", (event["id"],))
     ]
+    exclusions = {
+        (r["giver_id"], r["receiver_id"])
+        for r in db.execute(
+            "SELECT giver_id, receiver_id FROM exclusions WHERE event_id = ?", (event["id"],)
+        )
+    }
     try:
-        assignment = draw(ids)
+        assignment = draw(ids, exclusions)
     except NoValidAssignment:
-        abort(409)
+        return render_admin(
+            event,
+            admin_token,
+            "Mit diesen Ausschlüssen ist keine Auslosung möglich. Bitte entferne einige.",
+            409,
+        )
     with db:
         db.executemany(
             "UPDATE participants SET receiver_id = ? WHERE id = ?",
