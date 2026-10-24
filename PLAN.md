@@ -92,13 +92,22 @@ Regeln für die Eingabe:
 - Leerzeilen und überflüssige Leerzeichen werden ignoriert, Namenslänge und
   Teilnehmerzahl begrenzt (z. B. 50 Zeichen, 100 Personen).
 
-### 3.5 Änderungen nach der Auslosung
+### 3.5 Neu auslosen und Verlauf
 
-- Vor der Auslosung sind die Namen frei bearbeitbar.
-- Danach sind sie gesperrt. Fällt jemand aus oder gibt es Schummelverdacht, gibt
-  es „Neu auslosen“ (mit Bestätigung). Die persönlichen Links bleiben dabei
-  gleich, nur Zuordnung und Aufgedeckt-Status werden zurückgesetzt – es muss
-  also nichts neu verschickt werden.
+- Die Orga kann jederzeit **neu auslosen**, z. B. bei Schummelverdacht oder nach geänderten
+  Ausschlüssen. Das ist eine Aktion mit Bestätigung (aufklappbarer Bereich).
+- Jede Auslosung hat einen **Namen** (optional beim Auslosen, sonst „Auslosung 1“,
+  „Auslosung 2“ …) und lässt sich später umbenennen.
+- Die persönlichen Links bleiben gleich, es muss also nichts neu verschickt werden. Die
+  **neueste Auslosung ist die gültige**.
+- Frühere Auslosungen werden nicht gelöscht, sondern bilden den **Verlauf**: Auf der
+  persönlichen Seite stehen sie unter „Frühere Auslosungen“, markiert mit „gilt nicht mehr“,
+  und müssen wie die aktuelle per Klick aufgedeckt werden. Der Aufgedeckt-Status wird je
+  Auslosung gespeichert.
+- Ausschlüsse sind jederzeit änderbar und gelten für die nächste Auslosung; bestehende
+  Auslosungen bleiben unverändert. Schlägt eine Neuauslosung wegen zu strenger Ausschlüsse
+  fehl, bleibt alles wie zuvor.
+- Die Namen der Teilnehmenden sind nach dem Anlegen nicht änderbar (Phase 2).
 
 ## 4. Technik
 
@@ -129,9 +138,8 @@ better-sqlite3; der restliche Plan bleibt gleich.
 | `gift_date`        | DATE NULL     | Tag der Bescherung                           |
 | `note`             | TEXT NULL     | Hinweis für alle                             |
 | `admin_token_hash` | TEXT UNIQUE   | SHA-256 des Verwaltungs-Tokens               |
-| `status`           | TEXT          | `draft` → `drawn`                            |
+| `organizer_sees`   | INTEGER       | 1 = Orga darf die Zuordnung sehen            |
 | `created_at`       | DATETIME      |                                              |
-| `drawn_at`         | DATETIME NULL |                                              |
 
 **`participants`**
 
@@ -141,12 +149,31 @@ better-sqlite3; der restliche Plan bleibt gleich.
 | `event_id`          | FK → events, CASCADE     |                                                            |
 | `name`              | TEXT                     | eindeutig je Ereignis                                      |
 | `token`             | TEXT UNIQUE              | persönlicher Link; im Klartext, da die Orga ihn sehen muss |
-| `receiver_id`       | FK → participants NULL   | Ergebnis der Auslosung; UNIQUE(`event_id`, `receiver_id`)  |
-| `first_revealed_at` | DATETIME NULL            | Zeitpunkt des ersten Aufdeckens                            |
 | `wishes`            | TEXT NULL                | Wunschzettel (Phase 3)                                     |
 
-**`exclusions`** (Phase 3): `event_id`, `giver_id`, `receiver_id` –
+**`exclusions`**: `event_id`, `giver_id`, `receiver_id` –
 „giver darf receiver nicht ziehen“. Ein Paar sind zwei Einträge.
+
+**`draws`** (eine Zeile je Auslosung; die mit der größten `id` ist die aktuelle)
+
+| Spalte       | Typ                  | Hinweis                        |
+| ------------ | -------------------- | ------------------------------ |
+| `id`         | INTEGER PK           |                                |
+| `event_id`   | FK → events, CASCADE |                                |
+| `name`       | TEXT                 | z. B. „Heiligabend“            |
+| `created_at` | DATETIME             | Zeitpunkt der Auslosung        |
+
+**`assignments`** (eine Zeile je Person und Auslosung)
+
+| Spalte              | Typ                        | Hinweis                                             |
+| ------------------- | -------------------------- | --------------------------------------------------- |
+| `draw_id`           | FK → draws, CASCADE        | PK zusammen mit `giver_id`                          |
+| `giver_id`          | FK → participants, CASCADE |                                                     |
+| `receiver_id`       | FK → participants, CASCADE | UNIQUE zusammen mit `draw_id`                       |
+| `first_revealed_at` | DATETIME NULL              | Zeitpunkt des ersten Aufdeckens in dieser Auslosung |
+
+Datenbanken aus früheren Versionen (Zuordnung direkt an `participants`) werden beim Start
+automatisch in eine „Auslosung 1“ überführt.
 
 ## 6. Seiten und Routen
 
@@ -155,12 +182,13 @@ better-sqlite3; der restliche Plan bleibt gleich.
 | GET     | `/`                                           | Startseite mit Formular „Neues Wichteln“       |
 | POST    | `/events`                                     | Ereignis anlegen → Weiterleitung zur Verwaltung |
 | GET     | `/admin/<admin_token>`                        | Verwaltung: Namen, Status, persönliche Links   |
-| POST    | `/admin/<admin_token>/participants`           | Person hinzufügen (nur vor der Auslosung)      |
-| POST    | `/admin/<admin_token>/participants/<id>/delete` | Person entfernen (nur vor der Auslosung)     |
-| POST    | `/admin/<admin_token>/draw`                   | Auslosen bzw. neu auslosen                     |
+| POST    | `/admin/<admin_token>/exclusions`             | Ausschluss hinzufügen (einseitig/gegenseitig)  |
+| POST    | `/admin/<admin_token>/exclusions/<id>/delete` | Ausschluss entfernen                           |
+| POST    | `/admin/<admin_token>/draw`                   | Auslosen bzw. neu auslosen (Feld `name` optional) |
+| POST    | `/admin/<admin_token>/draws/<id>/rename`      | Auslosung umbenennen                           |
 | POST    | `/admin/<admin_token>/delete`                 | Ereignis löschen                               |
-| GET     | `/w/<token>`                                  | persönliche Seite, ohne Ergebnis               |
-| POST    | `/w/<token>/reveal`                           | Aufdecken, Ergebnis anzeigen                   |
+| GET     | `/w/<token>`                                  | persönliche Seite mit Verlauf, ohne Ergebnisse |
+| POST    | `/w/<token>/reveal/<draw_id>`                 | eine Auslosung aufdecken, Ergebnis anzeigen    |
 | POST    | `/w/<token>/wishes`                           | Wunschzettel speichern (Phase 3)               |
 
 ## 7. Sicherheit und Datenschutz
@@ -231,7 +259,8 @@ Wichteln/
 
 ### Phase 2 – Komfort
 
-- [ ] Namen vor der Auslosung bearbeiten, „Neu auslosen“ mit Bestätigung
+- [x] „Neu auslosen“ mit Bestätigung, benannte Auslosungen und Verlauf – bereits im Prototyp umgesetzt
+- [ ] Namen vor der ersten Auslosung bearbeiten (Person hinzufügen/entfernen)
 - [ ] Teilen-Buttons (WhatsApp-Link `https://wa.me/?text=…`, Web Share API auf
       dem Handy)
 - [ ] Budget, Datum und Hinweistext auf allen Seiten anzeigen

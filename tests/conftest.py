@@ -29,3 +29,23 @@ def participant_links(client, admin_path):
 
     html = client.get(admin_path).get_data(as_text=True)
     return re.findall(r'<input id="link-\d+" readonly value="[^"]*(/w/[^"]+)"', html)
+
+
+def reveal_paths(client, link):
+    """Reveal-Formulare der persönlichen Seite, die aktuelle Auslosung zuerst."""
+    import re
+
+    html = client.get(link).get_data(as_text=True)
+    return re.findall(r'action="(/w/[^"]+/reveal/\d+)"', html)
+
+
+def reveal(client, link, index=0):
+    return client.post(reveal_paths(client, link)[index])
+
+
+def result_name(resp):
+    return resp.get_data(as_text=True).split('class="result">')[1].split("<")[0]
+
+
+def own_name(client, link):
+    return client.get(link).get_data(as_text=True).split("Hallo ")[1].split("!")[0]

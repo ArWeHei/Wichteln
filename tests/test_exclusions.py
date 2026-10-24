@@ -1,6 +1,6 @@
 import re
 
-from .conftest import participant_links
+from .conftest import own_name, participant_links, result_name, reveal
 
 
 def ids_by_name(client, admin_path):
@@ -15,9 +15,7 @@ def assignment(client, admin_path):
     """Deckt alle Links auf und liefert {Name: beschenkte Person}."""
     result = {}
     for link in participant_links(client, admin_path):
-        own = client.get(link).get_data(as_text=True).split("Hallo ")[1].split("!")[0]
-        html = client.post(link + "/reveal").get_data(as_text=True)
-        result[own] = html.split('class="result">')[1].split("<")[0]
+        result[own_name(client, link)] = result_name(reveal(client, link))
     return result
 
 
@@ -87,8 +85,11 @@ def test_delete_exclusion(client, event):
     assert "Anna → Ben" not in client.get(event).get_data(as_text=True)
 
 
-def test_exclusions_locked_after_draw(client, event):
+def test_exclusions_stay_editable_after_draw(client, event):
     ids = ids_by_name(client, event)
     client.post(event + "/draw")
+    before = assignment(client, event)
     resp = client.post(event + "/exclusions", data={"giver": ids["Anna"], "receiver": ids["Ben"]})
-    assert resp.status_code == 409
+    assert resp.status_code == 303
+    assert "Anna → Ben" in client.get(event).get_data(as_text=True)
+    assert assignment(client, event) == before  # bestehende Auslosung bleibt unverändert

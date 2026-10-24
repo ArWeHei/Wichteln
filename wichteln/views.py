@@ -14,6 +14,7 @@ MAX_PARTICIPANTS = 100
 MAX_NAME = 50
 MAX_TITLE = 100
 MAX_BUDGET = 50
+MAX_DRAW_NAME = 50
 
 
 def now():
@@ -56,10 +57,8 @@ def get_participant(token):
     row = (
         get_db()
         .execute(
-            "SELECT p.*, e.title, e.budget, e.status, e.organizer_sees,"
-            " r.name AS receiver_name"
+            "SELECT p.*, e.title, e.budget, e.organizer_sees"
             " FROM participants p JOIN events e ON e.id = p.event_id"
-            " LEFT JOIN participants r ON r.id = p.receiver_id"
             " WHERE p.token = ?",
             (token,),
         )
@@ -68,6 +67,28 @@ def get_participant(token):
     if row is None:
         abort(404)
     return row
+
+
+def get_draws(event_id):
+    """Alle Auslosungen eines Wichtelns, die neueste (= aktuelle) zuerst."""
+    return (
+        get_db()
+        .execute(
+            "SELECT d.*, COUNT(a.giver_id) AS total, COUNT(a.first_revealed_at) AS revealed"
+            " FROM draws d LEFT JOIN assignments a ON a.draw_id = d.id"
+            " WHERE d.event_id = ? GROUP BY d.id ORDER BY d.id DESC",
+            (event_id,),
+        )
+        .fetchall()
+    )
+
+
+def clean_draw_name(raw):
+    """Liefert (name, fehler); ein leerer Name ist erlaubt und ergibt None."""
+    name = re.sub(r"\s+", " ", raw).strip()
+    if len(name) > MAX_DRAW_NAME:
+        return None, f"Der Name der Auslosung darf höchstens {MAX_DRAW_NAME} Zeichen lang sein."
+    return name or None, None
 
 
 @bp.get("/")
@@ -114,8 +135,13 @@ def create_event():
 
 def render_admin(event, admin_token, error=None, status=200):
     db = get_db()
+    draws = get_draws(event["id"])
+    current_id = draws[0]["id"] if draws else None
     participants = db.execute(
-        "SELECT * FROM participants WHERE event_id = ? ORDER BY name", (event["id"],)
+        "SELECT p.*, a.first_revealed_at AS revealed_at FROM participants p"
+        " LEFT JOIN assignments a ON a.giver_id = p.id AND a.draw_id = ?"
+        " WHERE p.event_id = ? ORDER BY p.name",
+        (current_id, event["id"]),
     ).fetchall()
     exclusions = db.execute(
         "SELECT x.id, g.name AS giver, r.name AS receiver FROM exclusions x"
@@ -124,20 +150,25 @@ def render_admin(event, admin_token, error=None, status=200):
         " WHERE x.event_id = ? ORDER BY g.name, r.name",
         (event["id"],),
     ).fetchall()
-    assignments = []
-    if event["organizer_sees"] and event["status"] == "drawn":
-        assignments = db.execute(
-            "SELECT g.name AS giver, r.name AS receiver FROM participants g"
-            " JOIN participants r ON r.id = g.receiver_id"
-            " WHERE g.event_id = ? ORDER BY g.name",
+    pairs = {}
+    if event["organizer_sees"]:
+        rows = db.execute(
+            "SELECT a.draw_id, g.name AS giver, r.name AS receiver FROM assignments a"
+            " JOIN draws d ON d.id = a.draw_id"
+            " JOIN participants g ON g.id = a.giver_id"
+            " JOIN participants r ON r.id = a.receiver_id"
+            " WHERE d.event_id = ? ORDER BY g.name",
             (event["id"],),
-        ).fetchall()
+        )
+        for row in rows:
+            pairs.setdefault(row["draw_id"], []).append(row)
     html = render_template(
         "admin.html",
-        assignments=assignments,
         event=event,
+        draws=draws,
         participants=participants,
         exclusions=exclusions,
+        pairs=pairs,
         admin_token=admin_token,
         error=error,
     )
@@ -152,13 +183,9 @@ def admin(admin_token):
 @bp.post("/admin/<admin_token>/exclusions")
 def add_exclusion(admin_token):
     event = get_event_by_admin_token(admin_token)
-    if event["status"] != "draft":
-        abort(409)
     db = get_db()
-    ids = {
-        r["id"]
-        for r in db.execute("SELECT id FROM participants WHERE event_id = ?", (event["id"],))
-    }
+    rows = db.execute("SELECT id FROM participants WHERE event_id = ?", (event["id"],))
+    ids = {r["id"] for r in rows}
     try:
         giver = int(request.form.get("giver", ""))
         receiver = int(request.form.get("receiver", ""))
@@ -182,8 +209,6 @@ def add_exclusion(admin_token):
 @bp.post("/admin/<admin_token>/exclusions/<int:exclusion_id>/delete")
 def delete_exclusion(admin_token, exclusion_id):
     event = get_event_by_admin_token(admin_token)
-    if event["status"] != "draft":
-        abort(409)
     db = get_db()
     with db:
         db.execute(
@@ -194,10 +219,13 @@ def delete_exclusion(admin_token, exclusion_id):
 
 @bp.post("/admin/<admin_token>/draw")
 def admin_draw(admin_token):
+    """Lost aus; gibt es schon Auslosungen, ist das eine Neuauslosung (die alten bleiben)."""
     event = get_event_by_admin_token(admin_token)
-    if event["status"] != "draft":
-        abort(409)
+    name, error = clean_draw_name(request.form.get("name", ""))
+    if error:
+        return render_admin(event, admin_token, error, 400)
     db = get_db()
+    name = name or f"Auslosung {len(get_draws(event['id'])) + 1}"
     ids = [
         r["id"]
         for r in db.execute("SELECT id FROM participants WHERE event_id = ?", (event["id"],))
@@ -218,13 +246,31 @@ def admin_draw(admin_token):
             409,
         )
     with db:
+        cur = db.execute(
+            "INSERT INTO draws (event_id, name, created_at) VALUES (?, ?, ?)",
+            (event["id"], name, now()),
+        )
         db.executemany(
-            "UPDATE participants SET receiver_id = ? WHERE id = ?",
-            [(receiver, giver) for giver, receiver in assignment.items()],
+            "INSERT INTO assignments (draw_id, giver_id, receiver_id) VALUES (?, ?, ?)",
+            [(cur.lastrowid, giver, receiver) for giver, receiver in assignment.items()],
         )
-        db.execute(
-            "UPDATE events SET status = 'drawn', drawn_at = ? WHERE id = ?", (now(), event["id"])
-        )
+    return redirect(url_for("wichteln.admin", admin_token=admin_token), code=303)
+
+
+@bp.post("/admin/<admin_token>/draws/<int:draw_id>/rename")
+def rename_draw(admin_token, draw_id):
+    event = get_event_by_admin_token(admin_token)
+    db = get_db()
+    exists = db.execute(
+        "SELECT 1 FROM draws WHERE id = ? AND event_id = ?", (draw_id, event["id"])
+    ).fetchone()
+    if exists is None:
+        abort(404)
+    name, error = clean_draw_name(request.form.get("name", ""))
+    if error or name is None:
+        return render_admin(event, admin_token, error or "Bitte gib einen Namen ein.", 400)
+    with db:
+        db.execute("UPDATE draws SET name = ? WHERE id = ?", (name, draw_id))
     return redirect(url_for("wichteln.admin", admin_token=admin_token), code=303)
 
 
@@ -237,23 +283,42 @@ def admin_delete(admin_token):
     return redirect(url_for("wichteln.index"), code=303)
 
 
+def render_participant(p, result=None):
+    # Die Namen der Beschenkten stehen nie in `draws`, nur im Ergebnis nach dem Klick.
+    draws = (
+        get_db()
+        .execute(
+            "SELECT d.id, d.name, d.created_at, a.first_revealed_at"
+            " FROM draws d JOIN assignments a ON a.draw_id = d.id AND a.giver_id = ?"
+            " WHERE d.event_id = ? ORDER BY d.id DESC",
+            (p["id"], p["event_id"]),
+        )
+        .fetchall()
+    )
+    return render_template("participant.html", p=p, draws=draws, result=result)
+
+
 @bp.get("/w/<token>")
 def participant(token):
-    p = get_participant(token)
-    return render_template("participant.html", p=p, revealed=False)
+    return render_participant(get_participant(token))
 
 
-@bp.post("/w/<token>/reveal")
-def reveal(token):
+@bp.post("/w/<token>/reveal/<int:draw_id>")
+def reveal(token, draw_id):
     p = get_participant(token)
-    if p["status"] != "drawn" or p["receiver_name"] is None:
-        abort(409)
-    if p["first_revealed_at"] is None:
-        db = get_db()
-        with db:
-            db.execute(
-                "UPDATE participants SET first_revealed_at = ?"
-                " WHERE id = ? AND first_revealed_at IS NULL",
-                (now(), p["id"]),
-            )
-    return render_template("participant.html", p=p, revealed=True)
+    db = get_db()
+    row = db.execute(
+        "SELECT r.name AS receiver_name FROM assignments a"
+        " JOIN participants r ON r.id = a.receiver_id"
+        " WHERE a.draw_id = ? AND a.giver_id = ?",
+        (draw_id, p["id"]),
+    ).fetchone()
+    if row is None:
+        abort(404)
+    with db:
+        db.execute(
+            "UPDATE assignments SET first_revealed_at = ?"
+            " WHERE draw_id = ? AND giver_id = ? AND first_revealed_at IS NULL",
+            (now(), draw_id, p["id"]),
+        )
+    return render_participant(p, {"draw_id": draw_id, "receiver": row["receiver_name"]})

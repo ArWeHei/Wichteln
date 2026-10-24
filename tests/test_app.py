@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from .conftest import participant_links
+from .conftest import participant_links, result_name, reveal
 
 
 def test_index(client):
@@ -35,13 +35,12 @@ def test_unknown_tokens_404(client):
     assert client.get("/admin/nope").status_code == 404
     assert client.post("/admin/nope/draw").status_code == 404
     assert client.get("/w/nope").status_code == 404
-    assert client.post("/w/nope/reveal").status_code == 404
+    assert client.post("/w/nope/reveal/1").status_code == 404
 
 
 def test_draw_flow(client, event):
     assert client.get(event).status_code == 200
     assert client.post(event + "/draw").status_code == 303
-    assert client.post(event + "/draw").status_code == 409  # nur einmal
 
     links = participant_links(client, event)
     assert len(links) == 4
@@ -50,11 +49,10 @@ def test_draw_flow(client, event):
     for link in links:
         page = client.get(link).get_data(as_text=True)
         assert "Du beschenkst" not in page
-        resp = client.post(link + "/reveal")
+        resp = reveal(client, link)
         assert resp.status_code == 200
-        html = resp.get_data(as_text=True)
-        assert "Du beschenkst" in html
-        seen.add(html.split('class="result">')[1].split("<")[0])
+        assert "Du beschenkst" in resp.get_data(as_text=True)
+        seen.add(result_name(resp))
     assert seen == {"Anna", "Ben", "Cleo", "Dora"}
 
 
@@ -71,8 +69,8 @@ def test_get_page_never_reveals_receiver_names(client, event):
 def test_admin_page_shows_no_assignment(client, event):
     client.post(event + "/draw")
     html = client.get(event).get_data(as_text=True)
-    assert "beschenkt" not in html.replace("wer wen beschenkt", "")
-    assert "receiver" not in html
+    assert 'class="pairs"' not in html
+    assert "→" not in html
 
 
 def test_reveal_before_draw_is_rejected(client, event):
@@ -83,10 +81,10 @@ def test_reveal_before_draw_is_rejected(client, event):
 def test_first_revealed_is_recorded_and_shown(client, event):
     client.post(event + "/draw")
     link = participant_links(client, event)[0]
-    assert "bereits am" not in client.get(link).get_data(as_text=True)
+    assert "Bereits am" not in client.get(link).get_data(as_text=True)
     assert "aufgedeckt" in client.get(event).get_data(as_text=True)
-    client.post(link + "/reveal")
-    assert "bereits am" in client.get(link).get_data(as_text=True)
+    reveal(client, link)
+    assert "Bereits am" in client.get(link).get_data(as_text=True)
     assert "✔ aufgedeckt" in client.get(event).get_data(as_text=True)
 
 
@@ -105,18 +103,10 @@ def test_security_headers(client, event):
     assert resp.headers["Cache-Control"] == "no-store"
 
 
-def _names(client, admin_path):
-    return {
-        link: client.get(link).get_data(as_text=True).split("Hallo ")[1].split("!")[0]
-        for link in participant_links(client, admin_path)
-    }
-
-
 def test_organizer_does_not_see_assignment_by_default(client, event):
     client.post(event + "/draw")
     html = client.get(event).get_data(as_text=True)
-    assert "Zuordnung</h2>" not in html
-    assert "→" not in html
+    assert 'class="pairs"' not in html
 
 
 def test_organizer_sees_assignment_when_chosen(client):
@@ -124,10 +114,10 @@ def test_organizer_sees_assignment_when_chosen(client):
         "/events",
         data={"title": "Kinder", "names": "Anna\nBen\nCleo\nDora", "organizer_sees": "1"},
     ).headers["Location"]
-    assert "Zuordnung</h2>" not in client.get(path).get_data(as_text=True)  # vor dem Auslosen
+    assert 'class="pairs"' not in client.get(path).get_data(as_text=True)  # vor dem Auslosen
     client.post(path + "/draw")
     html = client.get(path).get_data(as_text=True)
-    assert "Zuordnung</h2>" in html
+    assert 'class="pairs"' in html
 
     shown = dict(re.findall(r'class="person">(\w+) → (\w+)<', html))
     assert len(shown) == 4
@@ -135,8 +125,7 @@ def test_organizer_sees_assignment_when_chosen(client):
         page = client.get(link).get_data(as_text=True)
         own = page.split("Hallo ")[1].split("!")[0]
         assert "Organisation kann die Zuordnung einsehen" in page
-        revealed = client.post(link + "/reveal").get_data(as_text=True)
-        assert shown[own] == revealed.split('class="result">')[1].split("<")[0]
+        assert shown[own] == result_name(reveal(client, link))
 
 
 def test_default_event_page_has_no_organizer_notice(client, event):

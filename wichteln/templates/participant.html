@@ -1,5 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Dein Wichtel wartet{% endblock %}
+
+{% macro draw_card(d, current) %}
+<div class="card{% if not current %} old{% endif %}">
+  <h2>{{ d.name }}{% if current %} <span class="badge">aktuell</span>{% endif %}</h2>
+  <p class="muted">Ausgelost am {{ d.created_at|dt }}{% if not current %} · gilt nicht mehr{% endif %}</p>
+  {% if result and result.draw_id == d.id %}
+    <p>Du beschenkst:</p>
+    <div class="result">{{ result.receiver }}</div>
+    <p class="muted">Pssst – nicht weitersagen! Du kannst diese Seite jederzeit wieder öffnen.</p>
+  {% else %}
+    {% if d.first_revealed_at %}
+    <p class="warn">Bereits am {{ d.first_revealed_at|dt }} aufgedeckt. Das warst nicht du? Dann
+    sag der Organisation Bescheid.</p>
+    {% endif %}
+    {% if current %}<p>Bist du bereit? Stell sicher, dass niemand mitliest.</p>{% endif %}
+    <form method="post" action="{{ url_for('wichteln.reveal', token=p.token, draw_id=d.id) }}">
+      <button type="submit"{% if current %} class="big"{% else %} class="secondary"{% endif %}>Aufdecken</button>
+    </form>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {% block content %}
 <h1>Hallo {{ p.name }}! 🎁</h1>
 <p class="muted">{{ p.title }}{% if p.budget %} · Budget: {{ p.budget }}{% endif %}</p>
@@ -8,24 +30,17 @@
 <p class="muted">Hinweis: Die Organisation kann die Zuordnung einsehen.</p>
 {% endif %}
 
-{% if revealed %}
-<div class="card">
-  <p>Du beschenkst:</p>
-  <div class="result">{{ p.receiver_name }}</div>
-  <p class="muted">Pssst – nicht weitersagen! Du kannst diese Seite jederzeit wieder öffnen.</p>
-</div>
-{% elif p.status != 'drawn' %}
+{% if not draws %}
 <div class="card">Die Auslosung hat noch nicht stattgefunden. Schau später noch einmal vorbei.</div>
 {% else %}
-<div class="card">
-  {% if p.first_revealed_at %}
-  <p class="warn">Diese Seite wurde bereits am {{ p.first_revealed_at|dt }} aufgedeckt. Das warst
-  nicht du? Dann sag der Organisation Bescheid.</p>
-  {% endif %}
-  <p>Bist du bereit? Stell sicher, dass niemand mitliest.</p>
-  <form method="post" action="{{ url_for('wichteln.reveal', token=p.token) }}">
-    <button type="submit" class="big">Aufdecken</button>
-  </form>
-</div>
+{% if draws|length > 1 %}
+<p class="warn">Es wurde neu ausgelost. Es gilt die aktuelle Auslosung.</p>
+{% endif %}
+{{ draw_card(draws[0], true) }}
+
+{% if draws|length > 1 %}
+<h2>Frühere Auslosungen</h2>
+{% for d in draws[1:] %}{{ draw_card(d, false) }}{% endfor %}
+{% endif %}
 {% endif %}
 {% endblock %}

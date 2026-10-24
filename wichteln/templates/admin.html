@@ -1,37 +1,30 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }} – Verwaltung{% endblock %}
-{% block content %}
-<h1>{{ event.title }}</h1>
-{% if event.budget %}<p class="muted">Budget: {{ event.budget }}</p>{% endif %}
-<p class="muted">
-  {% if event.organizer_sees %}Du kannst nach dem Auslosen die komplette Zuordnung sehen.
-  {% else %}Du siehst die Zuordnung nicht und kannst selbst mitmachen.{% endif %}
-</p>
 
-<div class="card warn">
-  <strong>Diesen Verwaltungslink speichern!</strong>
-  Es gibt kein Konto – ohne diesen Link kommst du nicht mehr an die persönlichen Links.
-  <div class="row" style="margin-top:.5rem">
-    <input id="admin-url" readonly value="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">
-    <button type="button" class="secondary" data-target="admin-url"
-            data-copy="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">Kopieren</button>
-  </div>
+{% macro rename_form(d) %}
+<details>
+  <summary class="muted">Umbenennen</summary>
+  <form method="post" class="row" style="margin-top:.5rem"
+        action="{{ url_for('wichteln.rename_draw', admin_token=admin_token, draw_id=d.id) }}">
+    <input name="name" value="{{ d.name }}" maxlength="50" required aria-label="Name der Auslosung">
+    <button type="submit" class="secondary">Speichern</button>
+  </form>
+</details>
+{% endmacro %}
+
+{% macro pair_list(d) %}
+{% if pairs.get(d.id) %}
+<div class="pairs">
+  {% for a in pairs[d.id] %}<div class="person">{{ a.giver }} → {{ a.receiver }}</div>{% endfor %}
 </div>
-
-{% if error %}
-<div class="card error" role="alert">{{ error }}</div>
 {% endif %}
+{% endmacro %}
 
-{% if event.status == 'draft' %}
-<div class="card">
-  <h2>Teilnehmende ({{ participants|length }})</h2>
-  <p>{{ participants|map(attribute='name')|join(', ') }}</p>
-</div>
-
+{% macro exclusions_card() %}
 <div class="card">
   <h2>Ausschlüsse</h2>
   <p class="muted">Wer darf wen <strong>nicht</strong> ziehen? Z. B. Paare oder wer letztes
-  Jahr schon dran war.</p>
+  Jahr schon dran war.{% if draws %} Änderungen gelten erst für die nächste Auslosung.{% endif %}</p>
   {% for x in exclusions %}
   <div class="person row">
     <span>{{ x.giver }} → {{ x.receiver }}</span>
@@ -60,32 +53,64 @@
     <p><button type="submit" class="secondary">Ausschluss hinzufügen</button></p>
   </form>
 </div>
+{% endmacro %}
+
+{% block content %}
+<h1>{{ event.title }}</h1>
+{% if event.budget %}<p class="muted">Budget: {{ event.budget }}</p>{% endif %}
+<p class="muted">
+  {% if event.organizer_sees %}Du kannst die komplette Zuordnung sehen.
+  {% else %}Du siehst die Zuordnung nicht und kannst selbst mitmachen.{% endif %}
+</p>
+
+<div class="card warn">
+  <strong>Diesen Verwaltungslink speichern!</strong>
+  Es gibt kein Konto – ohne diesen Link kommst du nicht mehr an die persönlichen Links.
+  <div class="row" style="margin-top:.5rem">
+    <input id="admin-url" readonly value="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">
+    <button type="button" class="secondary" data-target="admin-url"
+            data-copy="{{ url_for('wichteln.admin', admin_token=admin_token, _external=True) }}">Kopieren</button>
+  </div>
+</div>
+
+{% if error %}
+<div class="card error" role="alert">{{ error }}</div>
+{% endif %}
+
+{% if not draws %}
+<div class="card">
+  <h2>Teilnehmende ({{ participants|length }})</h2>
+  <p>{{ participants|map(attribute='name')|join(', ') }}</p>
+</div>
+
+{{ exclusions_card() }}
 
 <div class="card">
-  <p>Nach dem Auslosen lassen sich Namen und Ausschlüsse nicht mehr ändern.</p>
+  <h2>Auslosen</h2>
   <form method="post" action="{{ url_for('wichteln.admin_draw', admin_token=admin_token) }}">
-    <button type="submit" class="big">Jetzt auslosen 🎲</button>
+    <label for="draw-name">Name der Auslosung (optional)</label>
+    <input id="draw-name" name="name" maxlength="50" placeholder="Auslosung 1">
+    <p><button type="submit" class="big">Jetzt auslosen 🎲</button></p>
   </form>
 </div>
 {% else %}
-<p>Ausgelost am {{ event.drawn_at|dt }}. Schick jeder Person ihren persönlichen Link.
-{% if not event.organizer_sees %}Hier siehst du <strong>nicht</strong>, wer wen beschenkt – so kannst du
-selbst mitmachen.{% endif %}</p>
-{% if assignments %}
+{% set current = draws[0] %}
 <div class="card">
-  <h2>Zuordnung</h2>
-  {% for a in assignments %}
-  <div class="person">{{ a.giver }} → {{ a.receiver }}</div>
-  {% endfor %}
+  <h2>{{ current.name }} <span class="badge">aktuell</span></h2>
+  <p class="muted">Ausgelost am {{ current.created_at|dt }}. Schick jeder Person ihren persönlichen
+  Link{% if not event.organizer_sees %} – hier siehst du <strong>nicht</strong>, wer wen
+  beschenkt{% endif %}.</p>
+  {{ rename_form(current) }}
+  {{ pair_list(current) }}
 </div>
-{% endif %}
+
 <div class="card">
   {% for p in participants %}
   <div class="person">
     <div class="row">
       <strong>{{ p.name }}</strong>
-      {% if p.first_revealed_at %}
-        <span class="status-ok">✔ aufgedeckt {{ p.first_revealed_at|dt }}</span>
+      {% if p.revealed_at %}
+        <span class="status-ok">✔ aufgedeckt {{ p.revealed_at|dt }}</span>
       {% else %}
         <span class="muted">noch nicht aufgedeckt</span>
       {% endif %}
@@ -98,11 +123,38 @@ selbst mitmachen.{% endif %}</p>
   </div>
   {% endfor %}
 </div>
+
+<details class="card">
+  <summary><strong>Neu auslosen</strong></summary>
+  <p>Die persönlichen Links bleiben gleich. Die neue Auslosung wird die aktuelle; die bisherigen
+  bleiben für alle als Verlauf sichtbar, gelten aber nicht mehr. Alle müssen ihren Link
+  erneut öffnen.</p>
+  <form method="post" action="{{ url_for('wichteln.admin_draw', admin_token=admin_token) }}">
+    <label for="redraw-name">Name der neuen Auslosung (optional)</label>
+    <input id="redraw-name" name="name" maxlength="50" placeholder="Auslosung {{ draws|length + 1 }}">
+    <p><button type="submit">Neu auslosen 🎲</button></p>
+  </form>
+</details>
+
+{{ exclusions_card() }}
+
+{% if draws|length > 1 %}
+<h2>Verlauf</h2>
+{% for d in draws[1:] %}
+<div class="card">
+  <h3>{{ d.name }}</h3>
+  <p class="muted">Ausgelost am {{ d.created_at|dt }} · {{ d.revealed }} von {{ d.total }}
+  aufgedeckt · ersetzt</p>
+  {{ rename_form(d) }}
+  {{ pair_list(d) }}
+</div>
+{% endfor %}
+{% endif %}
 {% endif %}
 
 <details class="card">
   <summary>Wichteln löschen</summary>
-  <p>Löscht alle Daten dieses Wichtelns unwiderruflich.</p>
+  <p>Löscht alle Daten dieses Wichtelns unwiderruflich, auch den Verlauf.</p>
   <form method="post" action="{{ url_for('wichteln.admin_delete', admin_token=admin_token) }}">
     <button type="submit" class="secondary">Endgültig löschen</button>
   </form>
